@@ -2,8 +2,14 @@ package uk.co.flax.luwak.termextractor;
 
 import java.util.List;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.junit.Test;
+import uk.co.flax.luwak.termextractor.querytree.AnyNode;
 import uk.co.flax.luwak.testutils.ParserUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -84,5 +90,47 @@ public class TestBooleanTermExtractor {
                 .containsOnly(new QueryTerm("field1", "term1", QueryTerm.Type.EXACT));
 
     }
+
+    @Test
+    public void testMatchAllDocsIsOnlyQuery() throws Exception {
+        // Set up - single MatchAllDocsQuery clause in a BooleanQuery
+        Query q = ParserUtils.parse("+*:*");
+        assertThat(q).isInstanceOf(BooleanQuery.class);
+        BooleanClause clause = Iterables.getOnlyElement((BooleanQuery)q);
+        assertThat(clause.getQuery()).isInstanceOf(MatchAllDocsQuery.class);
+        assertThat(clause.getOccur()).isSameAs(BooleanClause.Occur.MUST);
+
+        treeBuilder.collectTerms(q); //Right now this errors.
+    }
+
+    @Test
+    public void testMatchAllDocsMustWithKeywordShould() throws Exception {
+        Query q = ParserUtils.parse("+*:* field1:term1");
+
+        assertThat(treeBuilder.collectTerms(q))
+                .doesNotContain(new QueryTerm("field1", "term1", QueryTerm.Type.EXACT));
+        //TODO a real positive test, not a negative
+    }
+
+    @Test
+    public void testMatchAllDocsMustWithKeywordNot() throws Exception {
+        Query q = ParserUtils.parse("+*:* -field1:notterm");
+
+        List<QueryTerm> terms = treeBuilder.collectTerms(q);
+        assertThat(treeBuilder.collectTerms(q))
+                .doesNotContain(new QueryTerm("field1", "notterm", QueryTerm.Type.EXACT));
+        //TODO a real positive test, not a negative
+    }
+
+    @Test
+    public void testMatchAllDocsMustWithKeywordShouldAndKeywordNot() throws Exception {
+        Query q = ParserUtils.parse("+*:* field1:term1 -field2:notterm");
+
+        assertThat(treeBuilder.collectTerms(q))
+                .doesNotContain(new QueryTerm("field1", "term1", QueryTerm.Type.EXACT),
+                                new QueryTerm("field2", "notterm", QueryTerm.Type.EXACT));
+        //TODO a real positive test, not a negative
+    }
+
 
 }
